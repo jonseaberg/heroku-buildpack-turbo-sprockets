@@ -950,10 +950,11 @@ params = CGI.parse(uri.query || "")
 
   def generate_praxis_docs
     if bundler.has_gem?("praxis")
+      puts "praxis gem is installed"
       instrument "ruby.generate_praxis_docs" do
-        return false unless File.directory?("static")
         log("generate_praxis_docs") do
           topic("Generating Praxis API Documentation")
+          puts "Generating Praxis API Documentation"
           run("make docgen")
         end
       end

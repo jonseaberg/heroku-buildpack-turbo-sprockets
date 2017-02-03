@@ -951,15 +951,26 @@ params = CGI.parse(uri.query || "")
   def generate_praxis_docs
     if bundler.has_gem?("praxis")
       instrument "ruby.generate_praxis_docs" do
-        log("generate_praxis_docs") do
-          topic("Generating Praxis API Documentation")
-          result = rake.task("praxis:docs:build")
-          puts "praxis:docs:build => #{result.inspect}"
-          puts "making static dir"
-          run("mkdir -p static", user_env: true)
-          puts "success! ... moving docs to static..."
-          run("mv docs/output static/docs", user_env: true)
-          #run("make docgen", user_env: true)
+        topic("Generating Praxis API Documentation")
+        task_name = "praxis:docs:build"
+        rake_task = rake.task(task_name)
+        if !rake_task.is_defined?
+          log(task_name, :status => "failure")
+          error("Failed to find rake task definition: '#{task_name}'.\n")
+        else
+          log "Invoking Rake Task '#{task_name}'"
+          rake_task.invoke(env: rake_env)
+          if !rake_task.success?
+            log(task_name, :status => "failure")
+            error("Rake Task '#{task_name}' Failed.\n")
+          else
+            puts "Praxis Doc Gen Completed (#{"%.2f" % bower.time}s)"
+            puts "Creating '/static' directory..."
+            run("mkdir -p static", user_env: true)
+            puts "Moving docs from 'docs/output' to 'static/docs'..."
+            run("mv docs/output static/docs", user_env: true)
+            puts "Success! Praxis Docs are now generated and available."
+          end
         end
       end
     end

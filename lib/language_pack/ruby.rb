@@ -948,31 +948,62 @@ params = CGI.parse(uri.query || "")
     end
   end
 
+  # NOTE-bhcastle: Do NOT fail out the entire build/release just because we can't release our API docs.
   def generate_praxis_docs
     if bundler.has_gem?("praxis")
       instrument "ruby.generate_praxis_docs" do
         topic("Generating Praxis API Documentation")
-        task_name = "praxis:docs:build"
-        rake_task = rake.task(task_name)
-        if !rake_task.is_defined?
-          log(task_name, :status => "failure")
-          error("Failed to find rake task definition: '#{task_name}'.\n")
-        else
-          log "Invoking Rake Task '#{task_name}'"
-          rake_task.invoke(env: rake_env)
-          if !rake_task.success?
-            log(task_name, :status => "failure")
-            error("Rake Task '#{task_name}' Failed.\n")
-          else
-            puts "Praxis Doc Gen Completed (#{"%.2f" % bower.time}s)"
-            puts "Creating '/static' directory..."
-            run("mkdir -p static", user_env: true)
-            puts "Moving docs from 'docs/output' to 'static/docs'..."
-            run("mv docs/output static/docs", user_env: true)
-            puts "Success! Praxis Docs are now generated and available."
-          end
+        if words_file_exists?
+          successful_build = invoke_praxis_doc_build
+          move_praxis_docs_to_static if successful_build
         end
       end
     end
+  end
+
+  def praxis_doc_gen_failure(msg)
+    puts "#{msg}\nAborting Praxis API Doc Gen, but not failing the entire build/release.\n"
+  end
+
+  def words_file_exists?
+    wamerican_file    = "/usr/share/dict/american-english"
+    expected_file     = "/usr/share/dict/words"
+    alt_expected_file = "/usr/dict/words"
+    if File.exists?(expected_file) || File.exists?(alt_expected_file)
+      true
+    elsif File.exists?(wamerican_file)
+      puts "Moving '#{wamerican_file}' to '#{expected_file}'..."
+      run("mv #{wamerican_file} #{expected_file}", user_env: true)
+      puts "Successfully moved the wamerican file to the expected words file location."
+    else
+      praxis_doc_gen_failure("No 'words' file found in the system.")
+      false
+    end
+  end
+
+  def invoke_praxis_doc_build
+    task_name = "praxis:docs:build"
+    rake_task = rake.task(task_name)
+    if rake_task.is_defined?
+      rake_task.invoke(env: rake_env)
+      if rake_task.success?
+        puts "Praxis Doc Gen Completed (#{"%.2f" % rake_task.time}s)"
+        true
+      else
+        praxis_doc_gen_failure("Rake Task '#{task_name}' Failed.")
+        false
+      end
+    else
+      praxis_doc_gen_failure("Failed to find rake task definition: '#{task_name}'")
+      false
+    end
+  end
+
+  def move_praxis_docs_to_static
+    puts "Creating '/static' directory..."
+    run("mkdir -p static", user_env: true)
+    puts "Moving docs from 'docs/output' to 'static/docs'..."
+    run("mv docs/output static/docs", user_env: true)
+    puts "Success! Praxis Docs are now generated and available."
   end
 end

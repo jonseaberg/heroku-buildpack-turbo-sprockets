@@ -953,7 +953,13 @@ params = CGI.parse(uri.query || "")
       instrument "ruby.generate_praxis_docs" do
         log("generate_praxis_docs") do
           topic("Generating Praxis API Documentation")
-          run("make docgen")
+          result = rake.task("praxis:docs:build")
+          puts "praxis:docs:build => #{result.inspect}"
+          puts "making static dir"
+          run("mkdir -p static", user_env: true)
+          puts "success! ... moving docs to static..."
+          run("mv docs/output static/docs", user_env: true)
+          #run("make docgen", user_env: true)
         end
       end
     end

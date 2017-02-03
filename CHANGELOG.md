@@ -1,9 +1,53 @@
 ## Master
 
+## v153 (01/18/2017)
+
+* Fix regression, where defaults would override user env with rake (#528)
+
+## v152 (01/18/2017)
+
+* Remove RAILS_GROUPS=assets from being set in .profile.d (#526)
+
+## v151 (01/16/2017)
+
+* Upgrade to bundler 1.13.7 (#519)
+* Vendor Default Ruby to execute the buildpack (#515)
+* Heroku CI Support (#516)
+
+## v150 (12/23/2016)
+
+* Allow deployment of pre-release rubies (preview and rc) with Bundler 1.13.6+. This is needed because the patch level is recorded in the gemfile as `-1` since it is not released yet. For example 2.4.0rc1 will show up in a `Gemfile.lock` like this:
+
+```
+RUBY VERSION
+   ruby 2.4.0p-1
+```
+
+## v149 (12/01/2016)
+
+* Guarantee we always show warning when upgrading bundler version.
+
+## v148 (11/17/2016)
+
+* Default Ruby Version is 2.2.6
+* Update libyaml to 0.1.7 for [CVE-2014-9130](https://devcenter.heroku.com/changelog-items/1016)
+
+## v147 (11/15/2016)
+
+* Bump bundler to 1.13.6 [Bundler changelog](https://github.com/bundler/bundler/blob/v1.13.6/CHANGELOG.md). Allows for use of Ruby version operators.
+
+## v146 (03/23/2016)
+
+* Warn when `.bundle/config` is checked in (#471)
+* Do not cache `.bundle/config` between builds (#471)
+* Set WEB_CONCURRENCY for M-Performance dynos using sensible defaults (#474)
+* Fix rake task detection in Rails apps actually fails builds (#475)
+
 ## v145 (03/08/2016)
 
 * Bump bundler to 1.11.2 [Bundler changelog](https://github.com/bundler/bundler/blob/master/CHANGELOG.md#1112-2015-12-15) (#461)
 * Rails 5 Support for logging to STDOUT via environment variable (#460)
+* Fail build when rake tasks cannot be detected in a Rails app (#462)
 
 ## v144 (02/01/2016)
 

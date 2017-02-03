@@ -12,9 +12,9 @@ require "language_pack/version"
 # base Ruby Language Pack. This is for any base ruby app.
 class LanguagePack::Ruby < LanguagePack::Base
   NAME                 = "ruby"
-  LIBYAML_VERSION      = "0.1.6"
+  LIBYAML_VERSION      = "0.1.7"
   LIBYAML_PATH         = "libyaml-#{LIBYAML_VERSION}"
-  BUNDLER_VERSION      = "1.11.2"
+  BUNDLER_VERSION      = "1.13.7"
   BUNDLER_GEM_PATH     = "bundler-#{BUNDLER_VERSION}"
   RBX_BASE_URL         = "http://binaries.rubini.us/heroku"
   NODE_BP_PATH         = "vendor/node/bin"
@@ -79,6 +79,7 @@ class LanguagePack::Ruby < LanguagePack::Base
     if bundler.has_gem?("asset_sync")
       warn(<<-WARNING)
 You are using the `asset_sync` gem.
+This is not recommended.
 See https://devcenter.heroku.com/articles/please-do-not-use-asset-sync for more information.
 WARNING
     end
@@ -90,6 +91,7 @@ WARNING
       new_app?
       Dir.chdir(build_path)
       remove_vendor_bundle
+      warn_bundler_upgrade
       install_ruby
       install_jvm
       setup_language_pack_environment
@@ -97,7 +99,7 @@ WARNING
       setup_profiled
       allow_git do
         install_bundler_in_app
-        build_bundler
+        build_bundler("development:test")
         post_bundler
         bower_install
         create_database_yml
@@ -111,6 +113,21 @@ WARNING
   end
 
 private
+
+  def warn_bundler_upgrade
+    old_bundler_version  = @metadata.read("bundler_version").chomp if @metadata.exists?("bundler_version")
+
+    if old_bundler_version && old_bundler_version != BUNDLER_VERSION
+      puts(<<-WARNING)
+Your app was upgraded to bundler #{ BUNDLER_VERSION }.
+Previously you had a successful deploy with bundler #{ old_bundler_version }.
+
+If you see problems related to the bundler version please refer to:
+https://devcenter.heroku.com/articles/bundler-version
+
+WARNING
+    end
+  end
 
   # the base PATH environment variable to be used
   # @return [String] the resulting PATH
@@ -237,6 +254,10 @@ case $(ulimit -u) in
   export HEROKU_RAM_LIMIT_MB=${HEROKU_RAM_LIMIT_MB:-1024}
   export WEB_CONCURRENCY=${WEB_CONCURRENCY:-4}
   ;;
+16384)
+  export HEROKU_RAM_LIMIT_MB=${HEROKU_RAM_LIMIT_MB:-2560}
+  export WEB_CONCURRENCY=${WEB_CONCURRENCY:-8}
+  ;;
 32768)
   export HEROKU_RAM_LIMIT_MB=${HEROKU_RAM_LIMIT_MB:-6144}
   export WEB_CONCURRENCY=${WEB_CONCURRENCY:-16}
@@ -275,7 +296,7 @@ SHELL
 
       # TODO when buildpack-env-args rolls out, we can get rid of
       # ||= and the manual setting below
-      config_vars = default_config_vars.each do |key, value|
+      default_config_vars.each do |key, value|
         ENV[key] ||= value
       end
 
@@ -327,57 +348,16 @@ SHELL
     instrument 'ruby.install_ruby' do
       return false unless ruby_version
 
+      installer = LanguagePack::Installers::RubyInstaller.installer(ruby_version).new(@stack)
+
       if ruby_version.build?
-        FileUtils.mkdir_p(build_ruby_path)
-        Dir.chdir(build_ruby_path) do
-          ruby_vm = "ruby"
-          instrument "ruby.fetch_build_ruby" do
-            @fetchers[:mri].fetch_untar("#{ruby_version.version.sub(ruby_vm, "#{ruby_vm}-build")}.tgz")
-          end
-        end
+        installer.fetch_unpack(ruby_version, build_ruby_path, true)
       end
+      installer.install(ruby_version, slug_vendor_ruby)
 
-      FileUtils.mkdir_p(slug_vendor_ruby)
-      Dir.chdir(slug_vendor_ruby) do
-        instrument "ruby.fetch_ruby" do
-          if ruby_version.rbx?
-            file     = "#{ruby_version.version}.tar.bz2"
-            sha_file = "#{file}.sha1"
-            @fetchers[:rbx].fetch(file)
-            @fetchers[:rbx].fetch(sha_file)
+      @metadata.write("buildpack_ruby_version", ruby_version.version_for_download)
 
-            expected_checksum = File.read(sha_file).chomp
-            actual_checksum   = Digest::SHA1.file(file).hexdigest
-
-            error <<-ERROR_MSG unless expected_checksum == actual_checksum
-RBX Checksum for #{file} does not match.
-Expected #{expected_checksum} but got #{actual_checksum}.
-Please try pushing again in a few minutes.
-ERROR_MSG
-
-            run("tar jxf #{file}")
-            FileUtils.mv(Dir.glob("app/#{slug_vendor_ruby}/*"), ".")
-            FileUtils.rm_rf("app")
-            FileUtils.rm(file)
-            FileUtils.rm(sha_file)
-          else
-            @fetchers[:mri].fetch_untar("#{ruby_version.version}.tgz")
-          end
-        end
-      end
-
-      app_bin_dir = "bin"
-      FileUtils.mkdir_p app_bin_dir
-
-      run("ln -s ruby #{slug_vendor_ruby}/bin/ruby.exe")
-
-      Dir["#{slug_vendor_ruby}/bin/*"].each do |vendor_bin|
-        run("ln -s ../#{vendor_bin} #{app_bin_dir}")
-      end
-
-      @metadata.write("buildpack_ruby_version", ruby_version.version)
-
-      topic "Using Ruby version: #{ruby_version.version}"
+      topic "Using Ruby version: #{ruby_version.version_for_download}"
       if !ruby_version.set
         warn(<<-WARNING)
 You have not declared a Ruby version in your Gemfile.
@@ -390,21 +370,26 @@ WARNING
 
     true
   rescue LanguagePack::Fetcher::FetchError => error
+    message = <<ERROR
+An error occurred while installing #{ruby_version.version_for_download}
+
+Heroku recommends you use the latest supported Ruby version listed here:
+  https://devcenter.heroku.com/articles/ruby-support#supported-runtimes
+
+For more information on syntax for declaring a Ruby version see:
+  https://devcenter.heroku.com/articles/ruby-versions
+
+ERROR
+
     if ruby_version.jruby?
-      message = <<ERROR
-An error occurred while installing Ruby #{ruby_version.version}
-For supported Ruby versions see https://devcenter.heroku.com/articles/ruby-support#supported-runtimes
-Note: Only JRuby 1.7.13 and newer are supported on Cedar-14
-#{error.message}
-ERROR
-    else
-      message = <<ERROR
-An error occurred while installing Ruby #{ruby_version.version}
-For supported Ruby versions see https://devcenter.heroku.com/articles/ruby-support#supported-runtimes
-Note: Only the most recent version of Ruby 2.1 is supported on Cedar-14
-#{error.message}
-ERROR
+      message << "Note: Only JRuby 1.7.13 and newer are supported on Cedar-14"
+    elsif ruby_version.ruby_version.start_with?("2.1")
+      message << "Note: Only the most recent version of Ruby 2.1 is supported on Cedar-14\n"
     end
+
+    message << "\nDebug Information"
+    message << error.message
+
     error message
   end
 
@@ -511,8 +496,8 @@ ERROR
   def install_libyaml(dir)
     instrument 'ruby.install_libyaml' do
       FileUtils.mkdir_p dir
-      Dir.chdir(dir) do |dir|
-        @fetchers[:buildpack].fetch_untar("#{LIBYAML_PATH}.tgz")
+      Dir.chdir(dir) do
+        @fetchers[:buildpack].fetch_untar("#{@stack}/#{LIBYAML_PATH}.tgz")
       end
     end
   end
@@ -538,13 +523,24 @@ WARNING
   end
 
   # runs bundler to install the dependencies
-  def build_bundler
+  def build_bundler(default_bundle_without)
     instrument 'ruby.build_bundler' do
       log("bundle") do
-        bundle_without = env("BUNDLE_WITHOUT") || "development:test"
+        bundle_without = env("BUNDLE_WITHOUT") || default_bundle_without
         bundle_bin     = "bundle"
         bundle_command = "#{bundle_bin} install --without #{bundle_without} --path vendor/bundle --binstubs #{bundler_binstubs_path}"
         bundle_command << " -j4"
+
+        if File.exist?("#{Dir.pwd}/.bundle/config")
+          warn(<<-WARNING, inline: true)
+You have the `.bundle/config` file checked into your repository
+ It contains local state like the location of the installed bundle
+ as well as configured git local gems, and other settings that should
+not be shared between multiple checkouts of a single repo. Please
+remove the `.bundle/` folder from your repo and add it to your `.gitignore` file.
+https://devcenter.heroku.com/articles/bundler-configuration
+WARNING
+        end
 
         if bundler.windows_gemfile_lock?
           warn(<<-WARNING, inline: true)
@@ -560,7 +556,6 @@ WARNING
         else
           # using --deployment is preferred if we can
           bundle_command += " --deployment"
-          cache.load ".bundle"
         end
 
         topic("Installing dependencies using bundler #{bundler.version}")
@@ -618,12 +613,20 @@ WARNING
           error_message = "Failed to install gems via Bundler."
           puts "Bundler Output: #{bundler_output}"
           if bundler_output.match(/An error occurred while installing sqlite3/)
-            error_message += <<ERROR
+            error_message += <<-ERROR
 
-
-Detected sqlite3 gem which is not supported on Heroku.
+Detected sqlite3 gem which is not supported on Heroku:
 https://devcenter.heroku.com/articles/sqlite3
-ERROR
+            ERROR
+          end
+
+          if bundler_output.match(/but your Gemfile specified/)
+            error_message += <<-ERROR
+
+Detected a mismatch between your Ruby version installed and
+Ruby version specified in Gemfile or Gemfile.lock:
+https://devcenter.heroku.com/articles/ruby-versions#your-ruby-version-is-x-but-your-gemfile-specified-y
+            ERROR
           end
 
           error error_message
@@ -751,8 +754,9 @@ params = CGI.parse(uri.query || "")
   def rake
     @rake ||= begin
       rake_gem_available = bundler.has_gem?("rake") || ruby_version.rake_is_vendored?
-      raise_on_fail      = bundler.gem_version('railties') && bundler.gem_version('railties') < Gem::Version.new('3.x')
+      raise_on_fail      = bundler.gem_version('railties') && bundler.gem_version('railties') > Gem::Version.new('3.x')
 
+      topic "Detecting rake tasks"
       rake = LanguagePack::Helpers::RakeRunner.new(rake_gem_available)
       rake.load_rake_tasks!({ env: rake_env }, raise_on_fail)
       rake
@@ -857,24 +861,9 @@ params = CGI.parse(uri.query || "")
       rubygems_version_cache  = "rubygems_version"
       stack_cache             = "stack"
 
-      old_bundler_version  = @metadata.read(bundler_version_cache).chomp if @metadata.exists?(bundler_version_cache)
       old_rubygems_version = @metadata.read(ruby_version_cache).chomp if @metadata.exists?(ruby_version_cache)
       old_stack = @metadata.read(stack_cache).chomp if @metadata.exists?(stack_cache)
       old_stack ||= DEFAULT_LEGACY_STACK
-
-
-      if old_bundler_version && old_bundler_version != BUNDLER_VERSION
-        puts(<<-WARNING)
-Your app was upgraded to bundler #{ BUNDLER_VERSION }.
-Previously you had a successful deploy with bundler #{ old_bundler_version }.
-
-If you see problems related to the bundler version please refer to:
-https://devcenter.heroku.com/articles/bundler-version
-
-WARNING
-      end
-
-
 
       stack_change  = old_stack != @stack
       convert_stack = @bundler_cache.old?
@@ -928,6 +917,16 @@ WARNING
       if @metadata.exists?(buildpack_version_cache) && (bv = @metadata.read(buildpack_version_cache).sub('v', '').to_i) && bv != 0 && bv <= 99 && bundler.has_gem?("psych")
         puts "Need to recompile psych for CVE-2013-6393. Clearing bundler cache."
         puts "See http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=737076."
+        purge_bundler_cache
+      end
+
+      # recompile gems for libyaml 0.1.7 update
+      if @metadata.exists?(buildpack_version_cache) && (bv = @metadata.read(buildpack_version_cache).sub('v', '').to_i) && bv != 0 && bv <= 147 &&
+          (@metadata.exists?(ruby_version_cache) && @metadata.read(ruby_version_cache).chomp.match(/ruby 2\.1\.(9|10)/) ||
+           bundler.has_gem?("psych")
+          )
+        puts "Need to recompile gems for CVE-2014-2014-9130. Clearing bundler cache."
+        puts "See https://devcenter.heroku.com/changelog-items/1016."
         purge_bundler_cache
       end
 

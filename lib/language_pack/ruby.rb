@@ -966,18 +966,35 @@ params = CGI.parse(uri.query || "")
   end
 
   def words_file_exists?
-    wamerican_file    = "/usr/share/dict/american-english"
-    expected_file     = "/usr/share/dict/words"
-    alt_expected_file = "/usr/dict/words"
-    if File.exists?(expected_file) || File.exists?(alt_expected_file)
+    wamerican_file  = "/app/.apt/usr/share/dict/words"
+    expected_dir    = "/app/.dict" # "/usr/share/dict"
+    expected_file   = "#{expected_dir}/words"
+
+    if File.exists?(expected_file)
+      puts "Words file exists as required for praxis docs."
       true
-    elsif File.exists?(wamerican_file)
-      puts "Moving '#{wamerican_file}' to '#{expected_file}'..."
-      run("mv #{wamerican_file} #{expected_file}", user_env: true)
-      puts "Successfully moved the wamerican file to the expected words file location."
     else
-      praxis_doc_gen_failure("No 'words' file found in the system.")
-      false
+      unless Dir.exist?(expected_dir)
+        puts "Target directory does not exist.  Creating '#{expected_dir}'..."
+        Dir.mkdir(expected_dir, 0777)
+      end
+
+      if Dir.exist?(expected_dir)
+        puts "Creating symlink '#{expected_file}' to '#{wamerican_file}'..."
+        Dir.chdir(expected_dir) do |dir|
+          `ln -s #{wamerican_file}`
+        end
+        if File.exists?(expected_file)
+          puts "Words file exists as required for praxis docs."
+          true
+        else
+          praxis_doc_gen_failure("No 'words' file found.")
+          false
+        end
+      else
+        praxis_doc_gen_failure("Failed to create '#{expected_dir}.'")
+        false
+      end
     end
   end
 

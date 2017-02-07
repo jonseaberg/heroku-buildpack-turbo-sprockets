@@ -987,8 +987,21 @@ params = CGI.parse(uri.query || "")
         if Dir.exist?(app_dict_dir)
           puts "linking words '#{words_file}' to '#{app_words}'..."
           run("ln -s #{words_file} #{app_words}")
+          app_words_found = File.symlink?(app_words)
+          if app_words_found
+            puts "Words file exists as required for reading docs."
+          else
+            puts "ERROR: Missing words file exists as required for reading docs."
+          end
+          puts "linking words '#{words_file}' to '#{build_words}'..."
           run("ln -s #{words_file} #{build_words}")
-          if File.symlink?(app_words) && File.symlink?(build_words)
+          build_words_found = File.symlink?(build_words)
+          if build_words_found
+            puts "Words file exists as required for building praxis docs."
+          else
+            puts "ERROR: Missing words file exists as required for building praxis docs."
+          end
+          if app_words_found && build_words_found
             puts "Words file exists as required for praxis docs."
             true
           else

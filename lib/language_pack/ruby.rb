@@ -966,7 +966,7 @@ params = CGI.parse(uri.query || "")
   end
 
   def words_file_exists?
-    wamerican_file  = "/app/.apt/usr/share/dict/words"
+    wamerican_file  = File.expand_path("~/.apt/usr/share/dict/words")
     expected_dir    = File.expand_path("~/.dict") # "/usr/share/dict"
     expected_file   = "#{expected_dir}/words"
 

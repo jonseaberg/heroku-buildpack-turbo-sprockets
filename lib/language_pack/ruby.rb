@@ -969,56 +969,46 @@ params = CGI.parse(uri.query || "")
     wamerican_dir  = File.expand_path(".apt/usr/share/dict")
     words_file     = File.join(wamerican_dir, "american-english")
     app_dict_dir   = File.expand_path(".dict")
-    app_words      = "#{app_dict_dir}/words"
     build_dict_dir = File.expand_path("~/.dict")
-    build_words    = "#{build_dict_dir}/words"
 
     if Dir.exists?(wamerican_dir)
       puts "Found #{wamerican_dir}"
-      if File.exists?(app_words)
-        puts "Words file exists as required for praxis docs."
+      build_words_found = copy_dictionary_to(build_dict_dir, words_file)
+      app_words_found   = copy_dictionary_to(app_dict_dir, words_file)
+      if app_words_found && build_words_found
+        puts "Words files exists for building and showing praxis docs."
         true
       else
-        unless Dir.exist?(app_dict_dir)
-          puts "App Target directory does not exist.  Creating '#{app_dict_dir}'..."
-          Dir.mkdir(app_dict_dir)
-        end
-        unless Dir.exist?(build_dict_dir)
-          puts "Build Target directory does not exist.  Creating '#{build_dict_dir}'..."
-          Dir.mkdir(build_dict_dir)
-        end
-
-        if Dir.exist?(app_dict_dir)
-          puts "copying words '#{words_file}' to '#{app_words}'..."
-          run("cp #{words_file} #{app_dict_dir}")
-          app_words_found = File.symlink?(app_words)
-          if app_words_found
-            puts "Words file exists as required for reading docs."
-          else
-            puts "ERROR: Missing words file exists as required for reading docs."
-          end
-          puts "copying words '#{words_file}' to '#{build_words}'..."
-          run("ln -s #{words_file} #{build_dict_dir}")
-          build_words_found = File.symlink?(build_words)
-          if build_words_found
-            puts "Words file exists as required for building praxis docs."
-          else
-            puts "ERROR: Missing words file exists as required for building praxis docs."
-          end
-          if app_words_found && build_words_found
-            puts "Words file exists as required for praxis docs."
-            true
-          else
-            praxis_doc_gen_failure("No 'words' file found.")
-            false
-          end
-        else
-          praxis_doc_gen_failure("Failed to create '#{app_dict_dir}.'")
-          false
-        end
+        praxis_doc_gen_failure("No 'words' file found.")
+        false
       end
     else
       puts "wamerican does not exist where expected: #{wamerican_dir}"
+      false
+    end
+  end
+
+  def copy_dictionary_to(dict_dir, words_file)
+    destination_words_file = File.join(dict_dir, "words")
+    if Dir.exist?(dict_dir)
+      puts "Target directory exists: '#{dict_dir}'..."
+    else
+      puts "Target directory does not exist.  Creating '#{dict_dir}'..."
+      Dir.mkdir(dict_dir)
+    end
+
+    if Dir.exist?(dict_dir)
+      puts "copying words '#{words_file}' to '#{destination_words_file}'..."
+      run("cp -L #{words_file} #{dict_dir}")
+      if File.exists?(destination_words_file)
+        puts "Words file exists: #{destination_words_file}"
+        true
+      else
+        puts "ERROR: Words file not copied: #{destination_words_file}"
+        false
+      end
+    else
+      praxis_doc_gen_failure("Failed to create '#{dict_dir}.'")
       false
     end
   end

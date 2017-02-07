@@ -953,64 +953,14 @@ params = CGI.parse(uri.query || "")
     if bundler.has_gem?("praxis")
       instrument "ruby.generate_praxis_docs" do
         topic("Generating Praxis API Documentation")
-        if words_file_exists?
-          successful_build = invoke_praxis_doc_build
-          move_praxis_docs_to_static if successful_build
-        end
+        successful_build = invoke_praxis_doc_build
+        move_praxis_docs_to_static if successful_build
       end
     end
   end
 
   def praxis_doc_gen_failure(msg)
     puts "#{msg}\nAborting Praxis API Doc Gen, but not failing the entire build/release.\n"
-  end
-
-  def words_file_exists?
-    wamerican_dir  = File.expand_path(".apt/usr/share/dict")
-    words_file     = File.join(wamerican_dir, "american-english")
-    app_dict_dir   = File.expand_path(".dict")
-    build_dict_dir = File.expand_path("~/.dict")
-
-    if Dir.exists?(wamerican_dir)
-      puts "Found #{wamerican_dir}"
-      build_words_found = copy_dictionary_to(build_dict_dir, words_file)
-      app_words_found   = copy_dictionary_to(app_dict_dir, words_file)
-      if app_words_found && build_words_found
-        puts "Words files exists for building and showing praxis docs."
-        true
-      else
-        praxis_doc_gen_failure("No 'words' file found.")
-        false
-      end
-    else
-      puts "wamerican does not exist where expected: #{wamerican_dir}"
-      false
-    end
-  end
-
-  def copy_dictionary_to(dict_dir, words_file)
-    destination_words_file = File.join(dict_dir, "words")
-    if Dir.exist?(dict_dir)
-      puts "Target directory exists: '#{dict_dir}'..."
-    else
-      puts "Target directory does not exist.  Creating '#{dict_dir}'..."
-      Dir.mkdir(dict_dir)
-    end
-
-    if Dir.exist?(dict_dir)
-      puts "copying words '#{words_file}' to '#{destination_words_file}'..."
-      pipe("cp #{words_file} #{destination_words_file}")
-      if File.exists?(destination_words_file)
-        puts "Words file exists: #{destination_words_file}"
-        true
-      else
-        puts "ERROR: Words file not copied: #{destination_words_file}"
-        false
-      end
-    else
-      praxis_doc_gen_failure("Failed to create '#{dict_dir}.'")
-      false
-    end
   end
 
   def invoke_praxis_doc_build

@@ -966,26 +966,29 @@ params = CGI.parse(uri.query || "")
   end
 
   def words_file_exists?
-    wamerican_dir = File.expand_path(".apt/usr/share/dict")
-    words_file    = File.join(wamerican_dir, "american-english")
-    expected_dir  = File.expand_path(".dict")
-    expected_file = "#{expected_dir}/words"
+    wamerican_dir  = File.expand_path(".apt/usr/share/dict")
+    words_file     = File.join(wamerican_dir, "american-english")
+    app_dict_dir   = File.expand_path(".dict")
+    app_words      = "#{app_dict_dir}/words"
+    build_dict_dir = File.expand_path("~/.dict")
+    build_words    = "#{build_dict_dir}/words"
 
     if Dir.exists?(wamerican_dir)
       puts "Found #{wamerican_dir}"
-      if File.exists?(expected_file)
+      if File.exists?(app_words)
         puts "Words file exists as required for praxis docs."
         true
       else
-        unless Dir.exist?(expected_dir)
-          puts "Target directory does not exist.  Creating '#{expected_dir}'..."
-          Dir.mkdir(expected_dir)
+        unless Dir.exist?(app_dict_dir)
+          puts "Target directory does not exist.  Creating '#{app_dict_dir}'..."
+          Dir.mkdir(app_dict_dir)
         end
 
-        if Dir.exist?(expected_dir)
-          puts "linking words '#{words_file}' to '#{expected_file}'..."
-          run("ln -s #{words_file} #{expected_file}")
-          if File.symlink?(expected_file)
+        if Dir.exist?(app_dict_dir)
+          puts "linking words '#{words_file}' to '#{app_words}'..."
+          run("ln -s #{words_file} #{app_words}")
+          run("ln -s #{words_file} #{build_words}")
+          if File.symlink?(app_words) && File.symlink?(build_words)
             puts "Words file exists as required for praxis docs."
             true
           else
@@ -993,7 +996,7 @@ params = CGI.parse(uri.query || "")
             false
           end
         else
-          praxis_doc_gen_failure("Failed to create '#{expected_dir}.'")
+          praxis_doc_gen_failure("Failed to create '#{app_dict_dir}.'")
           false
         end
       end

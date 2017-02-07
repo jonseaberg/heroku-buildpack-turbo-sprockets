@@ -980,10 +980,8 @@ params = CGI.parse(uri.query || "")
       end
 
       if Dir.exist?(expected_dir)
-        puts "Creating symlink '#{expected_file}' to '#{wamerican_file}'..."
-        Dir.chdir(expected_dir) do |dir|
-          `ln -s #{wamerican_file}`
-        end
+        puts "copying words from '#{wamerican_file}' to '#{expected_file}'..."
+        run("cp #{wamerican_file} #{expected_dir}")
         if File.exists?(expected_file)
           puts "Words file exists as required for praxis docs."
           true

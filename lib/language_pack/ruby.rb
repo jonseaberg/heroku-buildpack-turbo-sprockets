@@ -998,8 +998,8 @@ params = CGI.parse(uri.query || "")
     end
 
     if Dir.exist?(dict_dir)
-      puts "copying words '#{words_file}' to '#{destination_words_file}'..."
-      run("cp -L #{words_file} #{dict_dir}")
+      puts "copying words '#{words_file}' to '#{dict_dir}'..."
+      pipe("cp #{words_file} #{dict_dir}")
       if File.exists?(destination_words_file)
         puts "Words file exists: #{destination_words_file}"
         true

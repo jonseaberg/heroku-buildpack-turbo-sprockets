@@ -966,33 +966,40 @@ params = CGI.parse(uri.query || "")
   end
 
   def words_file_exists?
-    wamerican_file  = File.expand_path("~/.apt/usr/share/dict/words")
-    expected_dir    = File.expand_path("~/.dict") # "/usr/share/dict"
-    expected_file   = "#{expected_dir}/words"
+    wamerican_dir = File.expand_path("~/.apt/usr/share/dict")
+    words_file    = File.join(wamerican_dir, "american-english")
+    expected_dir  = File.expand_path("~/.dict")
+    expected_file = "#{expected_dir}/words"
 
-    if File.exists?(expected_file)
-      puts "Words file exists as required for praxis docs."
-      true
-    else
-      unless Dir.exist?(expected_dir)
-        puts "Target directory does not exist.  Creating '#{expected_dir}'..."
-        Dir.mkdir(expected_dir)
-      end
+    if Dir.exists?(wamerican_dir)
+      puts "Found #{wamerican_dir}"
+      if File.exists?(expected_file)
+        puts "Words file exists as required for praxis docs."
+        true
+      else
+        unless Dir.exist?(expected_dir)
+          puts "Target directory does not exist.  Creating '#{expected_dir}'..."
+          Dir.mkdir(expected_dir)
+        end
 
-      if Dir.exist?(expected_dir)
-        puts "copying words from '#{wamerican_file}' to '#{expected_file}'..."
-        run("cp #{wamerican_file} #{expected_dir}")
-        if File.exists?(expected_file)
-          puts "Words file exists as required for praxis docs."
-          true
+        if Dir.exist?(expected_dir)
+          puts "linking words '#{words_file}' to '#{expected_file}'..."
+          run("ln -s #{words_file} #{expected_file}")
+          if File.symlink?(expected_file)
+            puts "Words file exists as required for praxis docs."
+            true
+          else
+            praxis_doc_gen_failure("No 'words' file found.")
+            false
+          end
         else
-          praxis_doc_gen_failure("No 'words' file found.")
+          praxis_doc_gen_failure("Failed to create '#{expected_dir}.'")
           false
         end
-      else
-        praxis_doc_gen_failure("Failed to create '#{expected_dir}.'")
-        false
       end
+    else
+      puts "wamerican does not exist where expected: #{wamerican_dir}"
+      false
     end
   end
 

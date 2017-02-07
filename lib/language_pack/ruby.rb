@@ -967,7 +967,7 @@ params = CGI.parse(uri.query || "")
 
   def words_file_exists?
     wamerican_file  = "/app/.apt/usr/share/dict/words"
-    expected_dir    = "/app/.dict" # "/usr/share/dict"
+    expected_dir    = "~/.dict" # "/usr/share/dict"
     expected_file   = "#{expected_dir}/words"
 
     if File.exists?(expected_file)
@@ -976,7 +976,7 @@ params = CGI.parse(uri.query || "")
     else
       unless Dir.exist?(expected_dir)
         puts "Target directory does not exist.  Creating '#{expected_dir}'..."
-        Dir.mkdir(expected_dir, 0777)
+        Dir.mkdir(expected_dir)
       end
 
       if Dir.exist?(expected_dir)

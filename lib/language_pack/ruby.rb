@@ -980,8 +980,12 @@ params = CGI.parse(uri.query || "")
         true
       else
         unless Dir.exist?(app_dict_dir)
-          puts "Target directory does not exist.  Creating '#{app_dict_dir}'..."
+          puts "App Target directory does not exist.  Creating '#{app_dict_dir}'..."
           Dir.mkdir(app_dict_dir)
+        end
+        unless Dir.exist?(build_dict_dir)
+          puts "Build Target directory does not exist.  Creating '#{build_dict_dir}'..."
+          Dir.mkdir(build_dict_dir)
         end
 
         if Dir.exist?(app_dict_dir)

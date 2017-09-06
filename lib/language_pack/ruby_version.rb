@@ -12,7 +12,7 @@ module LanguagePack
       end
     end
 
-    DEFAULT_VERSION_NUMBER = "2.2.6"
+    DEFAULT_VERSION_NUMBER = "2.3.4"
     DEFAULT_VERSION        = "ruby-#{DEFAULT_VERSION_NUMBER}"
     LEGACY_VERSION_NUMBER  = "1.9.2"
     LEGACY_VERSION         = "ruby-#{LEGACY_VERSION_NUMBER}"
@@ -52,7 +52,7 @@ module LanguagePack
     # Before Ruby 2.1 patch releases were done via patchlevel i.e. 1.9.3-p426 versus 1.9.3-p448
     # With 2.1 and above patches are released in the "minor" version instead i.e. 2.1.0 versus 2.1.1
     def patchlevel_is_significant?
-      Gem::Version.new(self.ruby_version) <= Gem::Version.new("2.1")
+      !jruby? && Gem::Version.new(self.ruby_version) <= Gem::Version.new("2.1")
     end
 
     def rake_is_vendored?
